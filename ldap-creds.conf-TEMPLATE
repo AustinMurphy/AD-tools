@@ -1,0 +1,19 @@
+#
+# Your domain  
+#
+
+[LDAP]
+
+# server
+uri=ldaps://server.domain.tld
+
+# bind credentials
+# long form (not email style)
+binddn=CN=bindacct,OU=Service Accounts,OU=Something,OU=YourOrg,DC=server,DC=domain,DC=tld
+bindpw=safeishpassword
+
+# search base
+base=DC=server,DC=domain,DC=tld
+
+
+
