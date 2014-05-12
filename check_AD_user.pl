@@ -6,6 +6,8 @@
 #
 #
 
+use strict; 
+
 use Data::Dumper;
 use File::Basename;
 use Config::Tiny;
@@ -39,7 +41,7 @@ my $base   = $Config->{LDAP}->{base};
 #
 # Process arguments
 #
-$numargs = scalar @ARGV;
+my $numargs = scalar @ARGV;
 ($numargs != 1 ) && die "Command takes 1 argument, a PMACS domain user ID.\n";
 
 my $user = $ARGV[0];
@@ -80,13 +82,13 @@ sub AcctTimeToUnixTime {
 # 
 #   FYI - LDAPS requies the self-signed cert in /etc/openldap/cacerts 
 #
-$ldap = Net::LDAP->new( $uri ) or die "$@";
+my $ldap = Net::LDAP->new( $uri ) or die "$@";
 
 
 # 
 # bind to AD using the HPC bind service acct 
 #
-$mesg = $ldap->bind ( $binddn ,
+my $mesg = $ldap->bind ( $binddn ,
                       password => $bindpw ,
                       version => 3 );      
 
@@ -116,18 +118,13 @@ my @arrayOfDNs  = keys %$href;        # use DN hashes
 #  make sure there is just one DN returned
 #
 
-$numDNs = scalar @arrayOfDNs;
+my $numDNs = scalar @arrayOfDNs;
 
 ( $numDNs == 0 ) && die "No user with the ID  $user  found in the PMACS domain.\n";
 ( $numDNs > 1 ) && die "ERROR:  More than 1 user with the ID  $user  found in the PMACS domain.\n";
 
 
 my $DN = $arrayOfDNs[0];
-
-print "\n";
-#print "      Distinguished Name:\n\n    $DN \n";
-print "    $DN \n";
-print "\n";
 
 
 # $valref is a reference to all the user's attributes & values
@@ -146,9 +143,29 @@ my $valref = $$href{$DN};
 
 
 
-
 print "\n";
 print "   Account basics \n";
+print "   -------------- \n";
+print "\n";
+
+#print "\n";
+#print "      Distinguished Name:\n\n    $DN \n";
+print "    $DN \n";
+print "\n";
+
+printf ( "%24s: %s \n", "name", $valref->{'name'}->[0] );
+printf ( "%24s: %s \n", "telephoneNumber", $valref->{'telephonenumber'}->[0] );
+printf ( "%24s: %s \n", "mobile", $valref->{'mobile'}->[0] );
+printf ( "%24s: %s \n", "mail", $valref->{'mail'}->[0] );
+printf ( "%24s: %s \n", "department", $valref->{'department'}->[0] );
+printf ( "%24s: %s \n", "manager", $valref->{'manager'}->[0] );
+print "\n";
+
+
+
+
+print "\n";
+print "   Account status \n";
 print "   -------------- \n";
 print "\n";
 
@@ -238,22 +255,17 @@ print "\n";
 
 
 print "\n";
-print "   Groups relevant to HPC \n";
-print "   ---------------------- \n";
+#print "   Groups relevant to HPC \n";
+print "   Relevant AD group memberships \n";
+print "   ----------------------------- \n";
 print "\n";
 
 
 # lab group member ?
 
 # ClusterUsers group member?
-
-
-# home dir created ?
-
-
-# former domain ?  MED / CCEB / AFCRI ?
-
-
+#    'CN=ClusterUsers,OU=Groups,OU=HPC,OU=PMACS,DC=pmacs,DC=upenn,DC=edu'
+# 
 
 
 
@@ -262,11 +274,79 @@ print "\n";
 #
 my @arrayOfListAttrs = ( 'memberOf' );
 
+#print "   --------------- \n";
+#print Dumper( $valref ) ;
+#print "   --------------- \n";
+
+
+my @adgroups = @{ $valref->{'memberof'} } ;
+
+#print "   --------------- \n";
+#print Dumper( @adgroups ) ;
+#print "   --------------- \n";
+
+
+#
+# Convert to list of groups to test membership in
+#
+print "  Member of ClusterUsers: ";
+my $grpName ;
+my $membership;
+foreach $grpName (@adgroups) {
+  $membership = "--- \n";
+  # print "group: $grpName \n";
+  if ($grpName eq 'CN=ClusterUsers,OU=Groups,OU=HPC,OU=PMACS,DC=pmacs,DC=upenn,DC=edu' ) {
+    $membership = "YES \n";
+    last;
+  }
+}
+print $membership;
+print "\n";
+
+
+
+#print "\n";
+#print "   UNIX group memberships \n";
+#print "   ---------------------- \n";
+#print "\n";
+#
+#
+#
+#
+## list of unix groups
+## '(&(gidNumber=*)(objectClass=group))'
+##  search member: 
+#
+#
+## search for all unix groups and test membership
+##
+#$mesg = $ldap->search( # perform a search
+#                        base   => $base ,
+#                        filter => "(&(&(gidNumber=*)(objectClass=group))(member=$DN))"
+#                      );
+#                        #filter => "(&(&(gidNumber=*)(objectClass=group))(member=$DN))"
+#                        #filter => "(&(gidNumber=*)(objectClass=group))"
+#
+#$mesg->code && die $mesg->error;
+#
+#my $grphref = $mesg->as_struct;
+#
+#
+## DEBUG
+#print "   --------------- \n";
+#print Dumper($grphref);
+#print "   --------------- \n";
+#
+#
+#
+#
+## home dir created ?
+#
+
+
 
 
 print "\n\n\n";
-
-
 
 $mesg = $ldap->unbind;   # take down session
 
