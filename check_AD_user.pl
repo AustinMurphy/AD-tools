@@ -8,7 +8,7 @@
 
 use strict; 
 
-use Data::Dumper;
+#use Data::Dumper;
 use File::Basename;
 use Config::Tiny;
 use Time::Local;
@@ -246,8 +246,8 @@ foreach $attrName (@UnixAttrs) {
   # get the attribute value (pointer) using the
   # attribute name as the hash
 
-  my $attrVal =  @$valref{$a};
-  printf ( "%24s: %s \n", $attrName, @$attrVal );
+  my $attrVal =  $valref->{$a}->[0];
+  printf ( "%24s: %s \n", $attrName, $attrVal );
 }
 print "\n";
 
@@ -326,7 +326,7 @@ $mesg = $ldap->search( # perform a search
 $mesg->code && die $mesg->error;
 my $prigrphref = $mesg->as_struct;
 
-foreach my $grpdn (keys $prigrphref )  { 
+foreach my $grpdn (keys %$prigrphref )  { 
   printf(" %24s: %s  (primary) \n", $prigrphref->{$grpdn}->{'name'}->[0], $prigrphref->{$grpdn}->{'gidnumber'}->[0]);
 }
 
@@ -342,7 +342,7 @@ $mesg = $ldap->search( # perform a search
 
 $mesg->code && die $mesg->error;
 my $grphref = $mesg->as_struct;
-my @grpnames = keys $grphref ;
+my @grpnames = keys %$grphref ;
 
 foreach my $grpdn (@grpnames)  { 
   # don't show the primary gid that was previously displayed

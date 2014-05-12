@@ -8,7 +8,7 @@
 
 use strict; 
 
-use Data::Dumper;
+#use Data::Dumper;
 use File::Basename;
 use Config::Tiny;
 use Time::Local;
@@ -127,7 +127,13 @@ my $numDNs = scalar @arrayOfDNs;
 my $DN = $arrayOfDNs[0];
 
 
-# $valref is a reference to all the group's attributes & values
+# $valref is a pointer to a hash
+#   each key in the hash is an Attribute name from LDAP
+#   the value associated with a key is a pointer to an array of attribute values
+#  
+#   For example:  the value of the attribute "cn" can be retrieved like this:
+#     $valref->{'cn'}->[0]
+#  
 my $valref = $$href{$DN};
 
 
@@ -147,9 +153,6 @@ print "\n";
 print "   Group basics \n";
 print "   ------------ \n";
 print "\n";
-
-#print "\n";
-#print "      Distinguished Name:\n\n    $DN \n";
 print "    $DN \n";
 print "\n";
 
@@ -169,11 +172,11 @@ print "\n";
 
 my $whencreated = $valref->{'whencreated'}->[0];
 my $createdtime =  scalar localtime(AcctTimeToUnixTime($whencreated));
-printf ( "%24s: %s (%s) \n", "Account created", $createdtime, $whencreated );
+printf ( "%24s: %s (%s) \n", "Group created", $createdtime, $whencreated );
 
 my $whenchanged = $valref->{'whenchanged'}->[0];
 my $changedtime =  scalar localtime(AcctTimeToUnixTime($whenchanged));
-printf ( "%24s: %s (%s) \n", "Account changed", $changedtime, $whenchanged );
+printf ( "%24s: %s (%s) \n", "Group changed", $changedtime, $whenchanged );
 
 print "\n";
 
@@ -189,7 +192,6 @@ print "\n";
 # UNIX attributes
 #
 # note:  attribs in datastructure are all lowercase
-#my @UnixAttrs = ( 'uid', 'uidNumber', 'gidNumber', 'unixHomeDirectory', 'loginShell' );
 my @UnixAttrs = ( 'name', 'gid', 'gidNumber' );
 
 my $attrName;        
@@ -200,8 +202,9 @@ foreach $attrName (@UnixAttrs) {
   # get the attribute value (pointer) using the
   # attribute name as the hash
 
-  my $attrVal =  @$valref{$a};
-  printf ( "%24s: %s \n", $attrName, @$attrVal );
+  # the values in the hash point to arrays that hold one value
+  my $attrVal =  $valref->{$a}->[0];
+  printf ( "%24s: %s \n", $attrName,  $attrVal );
 }
 print "\n";
 
@@ -228,8 +231,7 @@ $mesg = $ldap->search( # perform a search
 $mesg->code && die $mesg->error;
 my $prigrphref = $mesg->as_struct;
 
-foreach my $memName (keys $prigrphref )  {
-  #printf(" %24s: %s  (primary) \n", $prigrphref->{$userdn}->{'name'}->[0], $prigrphref->{$userdn}->{'gidnumber'}->[0]);
+foreach my $memName (keys %$prigrphref )  {
   print "PRI:  $memName  \n";
 }
 
@@ -262,8 +264,6 @@ if ($valref->{'member'} ) {
 print "\n\n\n";
 
 $mesg = $ldap->unbind;   # take down session
-
-#print Dumper($mesg);
 #$mesg->code && die $mesg->error;
 
 
