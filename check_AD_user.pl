@@ -305,43 +305,59 @@ print "\n";
 
 
 
-#print "\n";
-#print "   UNIX group memberships \n";
-#print "   ---------------------- \n";
-#print "\n";
+print "\n";
+print "   UNIX group memberships \n";
+print "   ---------------------- \n";
+print "\n";
+
 #
+# show the info for the primary group defined in the user
 #
+
+my $prigid = @$valref{'gidnumber'}->[0];
+
+# Search for unix style (ie. gidNumber is defined) groups (objectClass=group)
 #
+$mesg = $ldap->search( # perform a search
+                        base   => $base ,
+                        filter => "(&(gidNumber=$prigid)(objectClass=group))"
+                      );
+
+$mesg->code && die $mesg->error;
+my $prigrphref = $mesg->as_struct;
+
+foreach my $grpdn (keys $prigrphref )  { 
+  printf(" %24s: %s  (primary) \n", $prigrphref->{$grpdn}->{'name'}->[0], $prigrphref->{$grpdn}->{'gidnumber'}->[0]);
+}
+
+
 #
-## list of unix groups
-## '(&(gidNumber=*)(objectClass=group))'
-##  search member: 
+# Search for unix style (ie. gidNumber is defined) groups (objectClass=group)
+#  of which this DN is listed as a member
 #
-#
-## search for all unix groups and test membership
-##
-#$mesg = $ldap->search( # perform a search
-#                        base   => $base ,
-#                        filter => "(&(&(gidNumber=*)(objectClass=group))(member=$DN))"
-#                      );
-#                        #filter => "(&(&(gidNumber=*)(objectClass=group))(member=$DN))"
-#                        #filter => "(&(gidNumber=*)(objectClass=group))"
-#
-#$mesg->code && die $mesg->error;
-#
-#my $grphref = $mesg->as_struct;
-#
-#
-## DEBUG
-#print "   --------------- \n";
-#print Dumper($grphref);
-#print "   --------------- \n";
-#
-#
-#
-#
-## home dir created ?
-#
+$mesg = $ldap->search( # perform a search
+                        base   => $base ,
+                        filter => "(&(&(gidNumber=*)(objectClass=group))(member=$DN))"
+                      );
+
+$mesg->code && die $mesg->error;
+my $grphref = $mesg->as_struct;
+my @grpnames = keys $grphref ;
+
+foreach my $grpdn (@grpnames)  { 
+  # don't show the primary gid that was previously displayed
+  if ($grphref->{$grpdn}->{'gidnumber'}->[0] != $prigid ) {
+    printf(" %24s: %s \n", $grphref->{$grpdn}->{'name'}->[0], $grphref->{$grpdn}->{'gidnumber'}->[0]);
+  }
+}
+
+
+
+
+
+
+
+# home dir created ?
 
 
 
