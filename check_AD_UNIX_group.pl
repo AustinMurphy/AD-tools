@@ -12,6 +12,8 @@ use strict;
 use File::Basename;
 use Config::Tiny;
 use Time::Local;
+use DateTime;
+use DateTime::Format::ISO8601;
 use Net::LDAP;
 
 
@@ -169,14 +171,15 @@ print "   Group status \n";
 print "   ------------ \n";
 print "\n";
 
-
 my $whencreated = $valref->{'whencreated'}->[0];
-my $createdtime =  scalar localtime(AcctTimeToUnixTime($whencreated));
-printf ( "%24s: %s (%s) \n", "Group created", $createdtime, $whencreated );
+my $createdtime =  DateTime::Format::ISO8601->parse_datetime($whencreated);
+$createdtime->set_time_zone( 'America/New_York' );
+printf ( "%24s: %s (%s) \n", "Group created", $createdtime->strftime('%a %b %e %H:%M:%S %Y'), $whencreated );
 
 my $whenchanged = $valref->{'whenchanged'}->[0];
-my $changedtime =  scalar localtime(AcctTimeToUnixTime($whenchanged));
-printf ( "%24s: %s (%s) \n", "Group changed", $changedtime, $whenchanged );
+my $changedtime =  DateTime::Format::ISO8601->parse_datetime($whenchanged);
+$changedtime->set_time_zone( 'America/New_York' );
+printf ( "%24s: %s (%s) \n", "Group changed", $changedtime->strftime('%a %b %e %H:%M:%S %Y'), $whenchanged );
 
 print "\n";
 
