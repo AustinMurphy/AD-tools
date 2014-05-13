@@ -14,7 +14,6 @@ use Config::Tiny;
 use Time::Local;
 use DateTime;
 use DateTime::Format::ISO8601;
-#use DateTime::Format::WindowsFileTime;
 
 
 use Net::LDAP;
@@ -69,7 +68,8 @@ my $user = $ARGV[0];
 #   It is not included in RHEL/CentOS or EPEL
 sub WinFileTimeToUnixTime{
     my $adtime = shift;
-    return int( ($adtime /10000000) - 11676009600 ) ;
+    #return int( ($adtime /10000000) - 11676009600 ) ;
+    return int( ($adtime /10000000) - 11644473600 ) ;
 }
 
 
