@@ -362,8 +362,10 @@ my @arrayOfListAttrs = ( 'memberOf' );
 #print Dumper( $valref ) ;
 #print "   --------------- \n";
 
-
-my @adgroups = @{ $valref->{'memberof'} } ;
+my @adgroups ;
+if ( exists $valref->{'memberof'} ) {
+  @adgroups = @{ $valref->{'memberof'} } ;
+} 
 
 #print "   --------------- \n";
 #print Dumper( @adgroups ) ;
@@ -375,7 +377,7 @@ my @adgroups = @{ $valref->{'memberof'} } ;
 #
 print "  Member of ClusterUsers: ";
 my $grpName ;
-my $membership;
+my $membership = "--- \n";
 foreach $grpName (@adgroups) {
   $membership = "--- \n";
   # print "group: $grpName \n";
@@ -386,7 +388,7 @@ foreach $grpName (@adgroups) {
 }
 print $membership;
 print "\n";
-
+  
 
 
 print "\n";
