@@ -13,5 +13,7 @@ Pre-reqs
 --------
 
  centos 6:
-  - yum install perl-Config-Tiny perl-LDAP 
+   yum install perl-Config-Tiny perl-LDAP 
+   yum --enablerepo=epel install perl-DateTime-Format-ISO8601
+
 

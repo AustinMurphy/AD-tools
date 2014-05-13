@@ -13,8 +13,8 @@ use File::Basename;
 use Config::Tiny;
 use Time::Local;
 use DateTime;
-#use DateTime::Format::WindowsFileTime;
 use DateTime::Format::ISO8601;
+#use DateTime::Format::WindowsFileTime;
 
 
 use Net::LDAP;
@@ -64,7 +64,10 @@ my $user = $ARGV[0];
 
 
 # "FileTime" 
-sub ADtimeToUnixTime{
+#  There is a perl module for this, but it seems to be more trouble than it is worth to install
+#     DateTime::Format::WindowsFileTime 
+#   It is not included in RHEL/CentOS or EPEL
+sub WinFileTimeToUnixTime{
     my $adtime = shift;
     return int( ($adtime /10000000) - 11676009600 ) ;
 }
@@ -170,7 +173,7 @@ my $passwordsettime;
 if ( $pwdlastset == 0 ) {
   $passwordsettime = "never";
 } else {
-  $passwordsettime = scalar localtime(ADtimeToUnixTime($pwdlastset));
+  $passwordsettime = scalar localtime(WinFileTimeToUnixTime($pwdlastset));
 }
 printf ( "%24s: %s (%s)\n", "Password last set", $passwordsettime, $pwdlastset );
 
@@ -180,7 +183,7 @@ my $lastlogontime;
 if ( $lastlogon == 0 ) {
   $lastlogontime = "never";
 } else {
-  $lastlogontime = scalar localtime(ADtimeToUnixTime($lastlogon));
+  $lastlogontime = scalar localtime(WinFileTimeToUnixTime($lastlogon));
 }
 printf ( "%24s: %s (%s)\n", "Last logon", $lastlogontime, $lastlogon );
 
@@ -189,7 +192,7 @@ my $badpwdtime;
 if ( $badpasswordtime == 0 ) {
   $badpwdtime = "never";
 } else {
-  $badpwdtime = scalar localtime(ADtimeToUnixTime($badpasswordtime));
+  $badpwdtime = scalar localtime(WinFileTimeToUnixTime($badpasswordtime));
 }
 printf ( "%24s: %s (%s)\n", "Last bad password", $badpwdtime, $badpasswordtime );
 
@@ -204,7 +207,7 @@ if ( $lockouttime eq '' ) {
 } elsif ( $lockouttime eq '0' ) {
   $lockout = "not locked out";
 } else {
-  $lockout = scalar localtime(ADtimeToUnixTime($lockouttime));
+  $lockout = scalar localtime(WinFileTimeToUnixTime($lockouttime));
 }
 printf ( "%24s: %s (%s)\n", "Lockout time", $lockout, $lockouttime );
 
@@ -226,7 +229,7 @@ my $expirestime;
 if ( $accountexpires == 0 || $accountexpires == 9223372036854775807 ) {
   $expirestime = "never";
 } else {
-  $expirestime = scalar localtime(ADtimeToUnixTime($accountexpires));
+  $expirestime = scalar localtime(WinFileTimeToUnixTime($accountexpires));
 }
 printf ( "%24s: %s (%s)\n", "Account expires", $expirestime, $accountexpires );
 
