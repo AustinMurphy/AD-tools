@@ -12,6 +12,11 @@ use Data::Dumper;
 use File::Basename;
 use Config::Tiny;
 use Time::Local;
+use DateTime;
+#use DateTime::Format::WindowsFileTime;
+use DateTime::Format::ISO8601;
+
+
 use Net::LDAP;
 
 
@@ -62,17 +67,6 @@ my $user = $ARGV[0];
 sub ADtimeToUnixTime{
     my $adtime = shift;
     return int( ($adtime /10000000) - 11676009600 ) ;
-}
-
-sub AcctTimeToUnixTime {
-    my $accttime = shift;
-    # sample:  20140505145343.0Z
-    if ( $accttime =~ /^(....)(..)(..)(..)(..)(..)\.0Z$/ ) {
-      return timegm( $6, $5, $4, $3, $2-1, $1 );
-    } else {
-      # not sure what to do if there is no match
-      return $accttime;
-    }
 }
 
 
@@ -217,12 +211,14 @@ printf ( "%24s: %s (%s)\n", "Lockout time", $lockout, $lockouttime );
 
 print "\n";
 my $whencreated = $valref->{'whencreated'}->[0];
-my $createdtime =  scalar localtime(AcctTimeToUnixTime($whencreated));
-printf ( "%24s: %s (%s) \n", "Account created", $createdtime, $whencreated );
+my $createdtime =  DateTime::Format::ISO8601->parse_datetime($whencreated);
+$createdtime->set_time_zone( 'America/New_York' );
+printf ( "%24s: %s (%s) \n", "Account created", $createdtime->strftime('%a %b %e %H:%M:%S %Y'), $whencreated );
 
 my $whenchanged = $valref->{'whenchanged'}->[0];
-my $changedtime =  scalar localtime(AcctTimeToUnixTime($whenchanged));
-printf ( "%24s: %s (%s) \n", "Account changed", $changedtime, $whenchanged );
+my $changedtime =  DateTime::Format::ISO8601->parse_datetime($whenchanged);
+$changedtime->set_time_zone( 'America/New_York' );
+printf ( "%24s: %s (%s) \n", "Account changed", $changedtime->strftime('%a %b %e %H:%M:%S %Y'), $whenchanged );
 
 my $accountexpires = $valref->{'accountexpires'}->[0];
 my $expirestime;
@@ -230,7 +226,6 @@ my $expirestime;
 if ( $accountexpires == 0 || $accountexpires == 9223372036854775807 ) {
   $expirestime = "never";
 } else {
-  #$expirestime = scalar localtime(AcctTimeToUnixTime($accountexpires));
   $expirestime = scalar localtime(ADtimeToUnixTime($accountexpires));
 }
 printf ( "%24s: %s (%s)\n", "Account expires", $expirestime, $accountexpires );
