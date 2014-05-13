@@ -170,7 +170,9 @@ print "\n";
 
 my $pwdlastset =  $valref->{'pwdlastset'}->[0];
 my $passwordsettime;
-if ( $pwdlastset == 0 ) {
+if ( $pwdlastset eq '0' ) {
+  $passwordsettime = "must change password at next login";
+} elsif ( $pwdlastset eq '' ) {
   $passwordsettime = "never";
 } else {
   $passwordsettime = scalar localtime(WinFileTimeToUnixTime($pwdlastset));
