@@ -50,7 +50,7 @@ my $numargs = scalar @ARGV;
 
 my $user = $ARGV[0];
 
-($user !~ /^[a-z_]{2,16}$/ ) && die "User name must be between 2 and 16 lower-case letters or underscores long.\n";
+($user !~ /^[0-9a-z_]{2,16}$/ ) && die "User name must be between 2 and 16 lower-case letters, numbers or underscores long.\n";
 
 #print "User to lookup: $user \n";
 #print " working ... \n";
