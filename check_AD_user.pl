@@ -29,16 +29,16 @@ my $configfile =  dirname($0).'/ldap-creds.conf';
 ( -f $configfile ) || die "Configuration file ( $configfile ) missing! \n";
 $Config = Config::Tiny->read( $configfile );
 
-my $uri    = $Config->{LDAP}->{uri};
-my $binddn = $Config->{LDAP}->{binddn};
-my $bindpw = $Config->{LDAP}->{bindpw};
-my $base   = $Config->{LDAP}->{base};
+my $uri          = $Config->{LDAP}->{uri};
+my $binddn       = $Config->{LDAP}->{binddn};
+my $bindpw       = $Config->{LDAP}->{bindpw};
+my $base         = $Config->{LDAP}->{base};
 
 # DEBUG
-#print "   uri:  $uri    \n";
-#print "binddn:  $binddn \n";
-#print "bindpw:  $bindpw \n";
-#print "  base:  $base   \n";
+#print "       uri:  $uri    \n";
+#print "    binddn:  $binddn \n";
+#print "    bindpw:  $bindpw \n";
+#print "      base:  $base   \n";
 
 
 
@@ -66,11 +66,18 @@ my $user = $ARGV[0];
 #  There is a perl module for this, but it seems to be more trouble than it is worth to install
 #     DateTime::Format::WindowsFileTime 
 #   It is not included in RHEL/CentOS or EPEL
+#
 sub WinFileTimeToUnixTime{
     my $adtime = shift;
     #return int( ($adtime /10000000) - 11676009600 ) ;
     return int( ($adtime /10000000) - 11644473600 ) ;
 }
+#
+sub WinFileTimeDeltaToSec{
+    my $adtime = shift;
+    return int( ($adtime /10000000) ) ;
+}
+
 
 
 #
@@ -127,6 +134,31 @@ my $DN = $arrayOfDNs[0];
 # $valref is a reference to all the user's attributes & values
 my $valref = $$href{$DN};
 
+#
+# another query about the domain policy 
+#
+
+$mesg = $ldap->search( # perform a search
+                        base   => $base ,
+                        scope => 'base',
+                        filter => "(distinguishedName=$base)"
+                      );
+$mesg->code && die $mesg->error;
+
+# as_struct returns a much nicer data struct to work with
+#print Dumper($mesg->as_struct());
+my $dn_href = $mesg->as_struct;
+
+
+
+my $maxpwdage = $dn_href->{$base}->{'maxpwdage'}->[0] ;
+
+# DEBUG
+#print "\n ++++++  \n";
+#print "maxPwdAge: $maxpwdage  (raw) \n";
+#print "\n ++++++  \n";
+
+
 
 # 
 # DEBUG
@@ -138,6 +170,32 @@ my $valref = $$href{$DN};
 #print Dumper(@arrayOfAttrs);
 #print "---- \n";
 
+
+# LDAP keyword - display section - single/list - rules for interpretation
+#
+# name - basics - single - literal
+# telephonenumber - basics - single - literal
+# mobile - basics - single - literal
+# mail - basics - single - literal
+# department - basics - single - literal
+# manager - basics - single - literal
+#
+# pwdLastSet - status - single - WinFileTime, 0->must change at next, ''-> never?
+# lastLogon - status - single - WinFileTime, 0->never
+# badPasswordTime - status - single - WinFileTime, 0->never
+# whenCreated - status - single - 8601Time
+# whenChanged - status - single - 8601Time
+# accountExpires - status - single - 8601Time, 0->never
+# userAccountControl - status - list - UACcodelist
+# uid - unixattr - single - literal
+#
+# uidNumber - unixattr - single - literal
+# gidNumber - unixattr - single - literal
+# unixHomeDirectory - unixattr - single - literal
+# loginShell - unixattr - single - literal
+#
+# member - AD groups - list - parsegroup
+# memberOf - unix groups - list - parsegroup
 
 
 print "\n";
@@ -167,19 +225,41 @@ print "   -------------- \n";
 print "\n";
 
 
-
 my $pwdlastset =  $valref->{'pwdlastset'}->[0];
-my $passwordsettime;
+my $unix_pwdlastset;
+my $fmt_pwdlastset;
 if ( $pwdlastset eq '0' ) {
-  $passwordsettime = "must change password at next login";
+  $fmt_pwdlastset = "must change password at next login";
 } elsif ( $pwdlastset eq '' ) {
-  $passwordsettime = "never";
+  $fmt_pwdlastset = "never";
 } else {
-  $passwordsettime = scalar localtime(WinFileTimeToUnixTime($pwdlastset));
+  $unix_pwdlastset = WinFileTimeToUnixTime($pwdlastset);
+  $fmt_pwdlastset = scalar localtime( $unix_pwdlastset );
 }
-printf ( "%24s: %s (%s)\n", "Password last set", $passwordsettime, $pwdlastset );
+printf ( "%24s: %s (%s)\n", "Password last set", $fmt_pwdlastset, $pwdlastset );
+# 
+# check if expired by  
+#   - get maxPwdAge from  domain  (winfiletime-delta, negative val)
+#   - convert to seconds
+#   - add to time()
+#   - if newer than pwdLastSet, then password is expired
+#
+
+my $sec_maxpwdage =  WinFileTimeDeltaToSec($maxpwdage);
+my $curr_time = time();
+my $fmt_pwdexpired = "";
+my $oldestpwd = $curr_time + $sec_maxpwdage ;
+if ( $oldestpwd > $unix_pwdlastset ) {
+  $fmt_pwdexpired = "EXPIRED";
+} else {
+  my $days = int ( ( $unix_pwdlastset - $oldestpwd ) / 86400 );
+  $fmt_pwdexpired = "VALID, $days days remaining";
+}
+printf ( "%24s: %s \n", "", $fmt_pwdexpired );
+
 
 print "\n";
+
 my $lastlogon = $valref->{'lastlogon'}->[0];
 my $lastlogontime;
 if ( $lastlogon == 0 ) {
@@ -236,7 +316,6 @@ if ( $accountexpires == 0 || $accountexpires == 9223372036854775807 ) {
 printf ( "%24s: %s (%s)\n", "Account expires", $expirestime, $accountexpires );
 
 print "\n";
-
 
 # # http://support.microsoft.com/kb/305144
 # #  userAccountControl  FLAGS
