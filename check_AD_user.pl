@@ -441,6 +441,61 @@ print "\n";
 
 
 
+#print "\n";
+#print "   UNIX group memberships \n";
+#print "   ---------------------- \n";
+#print "\n";
+
+printf("%28s  \n", "UNIX groups");
+printf("%28s----------------- \n", "-----------");
+#print "       ------ \n";
+#print "\n";
+
+#
+# show the info for the primary group defined in the user
+#
+
+my $prigid = @$valref{'gidnumber'}->[0];
+
+# Search for unix style (ie. gidNumber is defined) groups (objectClass=group)
+#
+$mesg = $ldap->search( # perform a search
+                        base   => $base ,
+                        filter => "(&(gidNumber=$prigid)(objectClass=group))"
+                      );
+
+$mesg->code && die $mesg->error;
+my $prigrphref = $mesg->as_struct;
+
+foreach my $grpdn (keys %$prigrphref )  { 
+  printf("%28s: %s  (primary) \n", $prigrphref->{$grpdn}->{'name'}->[0], $prigrphref->{$grpdn}->{'gidnumber'}->[0]);
+}
+
+
+#
+# Search for unix style (ie. gidNumber is defined) groups (objectClass=group)
+#  of which this DN is listed as a member
+#
+$mesg = $ldap->search( # perform a search
+                        base   => $base ,
+                        filter => "(&(&(gidNumber=*)(objectClass=group))(member=$DN))"
+                      );
+
+$mesg->code && die $mesg->error;
+my $grphref = $mesg->as_struct;
+my @grpnames = keys %$grphref ;
+
+foreach my $grpdn (@grpnames)  { 
+  # don't show the primary gid that was previously displayed
+  if ($grphref->{$grpdn}->{'gidnumber'}->[0] != $prigid ) {
+    printf("%28s: %s \n", $grphref->{$grpdn}->{'name'}->[0], $grphref->{$grpdn}->{'gidnumber'}->[0]);
+  }
+}
+print "\n";
+
+
+
+
 
 print "\n";
 #print "   Groups relevant to HPC \n";
@@ -480,69 +535,20 @@ if ( exists $valref->{'memberof'} ) {
 #
 # Convert to list of groups to test membership in
 #
-print "  Member of ClusterUsers: ";
 my $grpName ;
-my $membership = "--- \n";
+my $membership = "---";
 foreach $grpName (@adgroups) {
-  $membership = "--- \n";
+  $membership = "---";
   # print "group: $grpName \n";
   if ($grpName eq 'CN=ClusterUsers,OU=Groups,OU=HPC,OU=PMACS,DC=pmacs,DC=upenn,DC=edu' ) {
-    $membership = "YES \n";
+    $membership = "MEMBER";
+    printf("%28s: %s\n ", "HPC ClusterUsers", $membership);
     last;
   }
 }
-print $membership;
+#print $membership;
 print "\n";
   
-
-
-print "\n";
-print "   UNIX group memberships \n";
-print "   ---------------------- \n";
-print "\n";
-
-#
-# show the info for the primary group defined in the user
-#
-
-my $prigid = @$valref{'gidnumber'}->[0];
-
-# Search for unix style (ie. gidNumber is defined) groups (objectClass=group)
-#
-$mesg = $ldap->search( # perform a search
-                        base   => $base ,
-                        filter => "(&(gidNumber=$prigid)(objectClass=group))"
-                      );
-
-$mesg->code && die $mesg->error;
-my $prigrphref = $mesg->as_struct;
-
-foreach my $grpdn (keys %$prigrphref )  { 
-  printf(" %28s: %s  (primary) \n", $prigrphref->{$grpdn}->{'name'}->[0], $prigrphref->{$grpdn}->{'gidnumber'}->[0]);
-}
-
-
-#
-# Search for unix style (ie. gidNumber is defined) groups (objectClass=group)
-#  of which this DN is listed as a member
-#
-$mesg = $ldap->search( # perform a search
-                        base   => $base ,
-                        filter => "(&(&(gidNumber=*)(objectClass=group))(member=$DN))"
-                      );
-
-$mesg->code && die $mesg->error;
-my $grphref = $mesg->as_struct;
-my @grpnames = keys %$grphref ;
-
-foreach my $grpdn (@grpnames)  { 
-  # don't show the primary gid that was previously displayed
-  if ($grphref->{$grpdn}->{'gidnumber'}->[0] != $prigid ) {
-    printf(" %28s: %s \n", $grphref->{$grpdn}->{'name'}->[0], $grphref->{$grpdn}->{'gidnumber'}->[0]);
-  }
-}
-
-
 
 
 
