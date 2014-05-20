@@ -78,6 +78,70 @@ sub WinFileTimeDeltaToSec{
     return int( ($adtime /10000000) ) ;
 }
 
+#
+#  UAC  interpreter
+# 
+
+# # http://support.microsoft.com/kb/305144
+# #  userAccountControl  FLAGS
+# 
+# SCRIPT				    0x0001	1
+# ACCOUNTDISABLE			    0x0002	2
+# HOMEDIR_REQUIRED			    0x0008	8
+# LOCKOUT				    0x0010	16
+# PASSWD_NOTREQD			    0x0020	32
+# PASSWD_CANT_CHANGE 			    0x0040	64
+# ENCRYPTED_TEXT_PWD_ALLOWED		    0x0080	128
+# TEMP_DUPLICATE_ACCOUNT		    0x0100	256
+# NORMAL_ACCOUNT			    0x0200	512
+# INTERDOMAIN_TRUST_ACCOUNT		    0x0800	2048
+# WORKSTATION_TRUST_ACCOUNT		    0x1000	4096
+# SERVER_TRUST_ACCOUNT			    0x2000	8192
+# DONT_EXPIRE_PASSWORD			   0x10000	65536
+# MNS_LOGON_ACCOUNT			   0x20000	131072
+# SMARTCARD_REQUIRED			   0x40000	262144
+# TRUSTED_FOR_DELEGATION		   0x80000	524288
+# NOT_DELEGATED				  0x100000	1048576
+# USE_DES_KEY_ONLY			  0x200000	2097152
+# DONT_REQ_PREAUTH			  0x400000	4194304
+# PASSWORD_EXPIRED			  0x800000	8388608
+# TRUSTED_TO_AUTH_FOR_DELEGATION	 0x1000000	16777216
+# PARTIAL_SECRETS_ACCOUNT		0x04000000  	67108864
+
+my $uacnum;
+my @uacflags;
+
+my @uacflagnames = (
+   "SCRIPT",
+   "ACCOUNTDISABLE",
+   "unknown",
+   "HOMEDIR_REQUIRED",
+   "LOCKOUT",
+   "PASSWD_NOTREQD",
+   "PASSWD_CANT_CHANGE",
+   "ENCRYPTED_TEXT_PWD_ALLOWED",
+   "TEMP_DUPLICATE_ACCOUNT",
+   "NORMAL_ACCOUNT",
+   "unknown",
+   "INTERDOMAIN_TRUST_ACCOUNT",
+   "WORKSTATION_TRUST_ACCOUNT",
+   "SERVER_TRUST_ACCOUNT",
+   "unknown",
+   "unknown",
+   "DONT_EXPIRE_PASSWORD",
+   "MNS_LOGON_ACCOUNT",
+   "SMARTCARD_REQUIRED",
+   "TRUSTED_FOR_DELEGATION",
+   "NOT_DELEGATED",
+   "USE_DES_KEY_ONLY",
+   "DONT_REQ_PREAUTH",
+   "PASSWORD_EXPIRED",
+   "TRUSTED_TO_AUTH_FOR_DELEGATION",
+   "unknown",
+   "PARTIAL_SECRETS_ACCOUNT"
+);
+
+
 
 
 #
@@ -147,13 +211,13 @@ $mesg->code && die $mesg->error;
 
 # as_struct returns a much nicer data struct to work with
 #print Dumper($mesg->as_struct());
-my $dn_href = $mesg->as_struct;
+my $dom_href = $mesg->as_struct;
 
 
 
 my $curr_time = time();
-my $maxpwdage = $dn_href->{$base}->{'maxpwdage'}->[0] ;
-my $lockoutduration = $dn_href->{$base}->{'lockoutduration'}->[0] ;
+my $maxpwdage = $dom_href->{$base}->{'maxpwdage'}->[0] ;
+my $lockoutduration = $dom_href->{$base}->{'lockoutduration'}->[0] ;
 
 # DEBUG
 #print "\n ++++++  \n";
@@ -200,36 +264,54 @@ my $lockoutduration = $dn_href->{$base}->{'lockoutduration'}->[0] ;
 # memberOf - unix groups - list - parsegroup
 
 
-print "\n";
-print "   Account basics \n";
-print "   -------------- \n";
-print "\n";
-
-#print "\n";
-#print "      Distinguished Name:\n\n    $DN \n";
-print "    $DN \n";
-print "\n";
-
-printf ( "%28s: %s \n", "name", $valref->{'name'}->[0] );
-printf ( "%28s: %s \n", "telephoneNumber", $valref->{'telephonenumber'}->[0] );
-printf ( "%28s: %s \n", "mobile", $valref->{'mobile'}->[0] );
-printf ( "%28s: %s \n", "mail", $valref->{'mail'}->[0] );
-printf ( "%28s: %s \n", "department", $valref->{'department'}->[0] );
-printf ( "%28s: %s \n", "manager", $valref->{'manager'}->[0] );
-print "\n";
-
-
-
-
-print "\n";
-print "   Account status \n";
-print "   -------------- \n";
-print "\n";
-
-
 my $pwdlastset =  $valref->{'pwdlastset'}->[0];
 my $unix_pwdlastset;
 my $fmt_pwdlastset;
+my $sec_maxpwdage =  WinFileTimeDeltaToSec($maxpwdage);
+my $pwdexpstate = "";
+my $oldestpwd = $curr_time + $sec_maxpwdage ;
+my $lastlogon = $valref->{'lastlogon'}->[0];
+my $lastlogontime;
+my $badpasswordtime = $valref->{'badpasswordtime'}->[0];
+my $fmt_badpasswordtime;
+my $badpwdcount = $valref->{'badpwdcount'}->[0];
+my $lockoutstate;
+my $whencreated = $valref->{'whencreated'}->[0];
+my $dt_whencreated =  DateTime::Format::ISO8601->parse_datetime($whencreated);
+$dt_whencreated->set_time_zone( 'America/New_York' );
+my $whenchanged = $valref->{'whenchanged'}->[0];
+my $dt_whenchanged =  DateTime::Format::ISO8601->parse_datetime($whenchanged);
+$dt_whenchanged->set_time_zone( 'America/New_York' );
+my $accountexpires = $valref->{'accountexpires'}->[0];
+my $unix_accountexpires = 0;
+my $fmt_accountexpires = "";
+my $acctexpstate;
+$uacnum =  $valref->{'useraccountcontrol'}->[0] ;
+@uacflags = split( '', unpack( "b*", pack ("i", $uacnum) ) );
+my $acctdsblstate;
+my $pwdnoexp;
+
+
+
+#
+# Formatting & expiration logic
+#
+
+# disabled is simply the UAC flag
+if ( $uacflags[1] == 1 ) {
+  $acctdsblstate = "DISABLED";
+} else {
+  $acctdsblstate = "NOT DISABLED";
+}
+
+# UAC flag overrides password expiration
+if ( $uacflags[16] == 1 ) {
+  $pwdnoexp = 1 ;
+} else {
+  $pwdnoexp = 0 ;
+}
+
+
 if ( $pwdlastset eq '0' ) {
   $fmt_pwdlastset = "must change password at next login";
 } elsif ( $pwdlastset eq '' ) {
@@ -238,7 +320,6 @@ if ( $pwdlastset eq '0' ) {
   $unix_pwdlastset = WinFileTimeToUnixTime($pwdlastset);
   $fmt_pwdlastset = scalar localtime( $unix_pwdlastset );
 }
-printf ( "%28s: %s (%s)\n", "Password last set", $fmt_pwdlastset, $pwdlastset );
 # 
 # check if expired by  
 #   - get maxPwdAge from  domain  (winfiletime-delta, negative val)
@@ -246,41 +327,29 @@ printf ( "%28s: %s (%s)\n", "Password last set", $fmt_pwdlastset, $pwdlastset );
 #   - add to time()
 #   - if newer than pwdLastSet, then password is expired
 #
-
-my $sec_maxpwdage =  WinFileTimeDeltaToSec($maxpwdage);
-my $fmt_pwdexpired = "";
-my $oldestpwd = $curr_time + $sec_maxpwdage ;
 if ( $oldestpwd > $unix_pwdlastset ) {
-  $fmt_pwdexpired = "EXPIRED";
+  if ( $pwdnoexp ) {
+    $pwdexpstate = "NOT EXPIRED";
+  } else {
+    $pwdexpstate = "EXPIRED";
+  }
 } else {
   my $days = int ( ( $unix_pwdlastset - $oldestpwd ) / 86400 );
-  $fmt_pwdexpired = "NOT EXPIRED, $days days remaining";
+  $pwdexpstate = "NOT EXPIRED, $days days remaining";
 }
-printf ( "%28s: %s \n", "Password expiration status", $fmt_pwdexpired );
 
-
-print "\n";
-
-my $lastlogon = $valref->{'lastlogon'}->[0];
-my $lastlogontime;
 if ( $lastlogon == 0 ) {
   $lastlogontime = "never";
 } else {
   $lastlogontime = scalar localtime(WinFileTimeToUnixTime($lastlogon));
 }
-printf ( "%28s: %s (%s)\n", "Last logon", $lastlogontime, $lastlogon );
 
-my $badpasswordtime = $valref->{'badpasswordtime'}->[0];
-my $badpwdtime;
 if ( $badpasswordtime == 0 ) {
-  $badpwdtime = "never";
+  $fmt_badpasswordtime = "never";
 } else {
-  $badpwdtime = scalar localtime(WinFileTimeToUnixTime($badpasswordtime));
+  $fmt_badpasswordtime = scalar localtime(WinFileTimeToUnixTime($badpasswordtime));
 }
-printf ( "%28s: %s (%s)\n", "Last bad password", $badpwdtime, $badpasswordtime );
 
-my $badpwdcount = $valref->{'badpwdcount'}->[0];
-printf ( "%28s: %s \n", "Bad password count", $badpwdcount );
 
 # lockoutTime
 my $lockouttime = $valref->{'lockouttime'}->[0];
@@ -295,10 +364,8 @@ if ( $lockouttime eq '' ) {
   $unix_lockouttime = WinFileTimeToUnixTime($lockouttime);
   $fmt_lockouttime = scalar localtime($unix_lockouttime);
 }
-printf ( "%28s: %s (%s)\n", "Lockout time", $fmt_lockouttime, $lockouttime );
-# lockout ends at  lockoutTime + lockoutduration
-my $lockoutstate;
 
+# lockout ends at  lockoutTime + lockoutduration
 if ( $unix_lockouttime > 0 ) {
   if ( $lockoutduration > 0 ) {
     my $unix_lockoutduration = WinFileTimeDeltaToSec( $lockoutduration );
@@ -314,24 +381,8 @@ if ( $unix_lockouttime > 0 ) {
 } else {
   $lockoutstate = "NOT LOCKED OUT"
 }
-printf ( "%28s: %s \n", "Password Lockout status", $lockoutstate );
 
 
-print "\n";
-my $whencreated = $valref->{'whencreated'}->[0];
-my $createdtime =  DateTime::Format::ISO8601->parse_datetime($whencreated);
-$createdtime->set_time_zone( 'America/New_York' );
-printf ( "%28s: %s (%s) \n", "Account created", $createdtime->strftime('%a %b %e %H:%M:%S %Y'), $whencreated );
-
-my $whenchanged = $valref->{'whenchanged'}->[0];
-my $changedtime =  DateTime::Format::ISO8601->parse_datetime($whenchanged);
-$changedtime->set_time_zone( 'America/New_York' );
-printf ( "%28s: %s (%s) \n", "Account changed", $changedtime->strftime('%a %b %e %H:%M:%S %Y'), $whenchanged );
-
-my $accountexpires = $valref->{'accountexpires'}->[0];
-my $unix_accountexpires = 0;
-my $fmt_accountexpires = "";
-my $expirestime;
 # http://msdn.microsoft.com/en-us/library/ms675098%28v=vs.85%29.aspx
 if ( $accountexpires == 0 || $accountexpires == 9223372036854775807 ) {
   $fmt_accountexpires = "never";
@@ -340,7 +391,6 @@ if ( $accountexpires == 0 || $accountexpires == 9223372036854775807 ) {
   $fmt_accountexpires = scalar localtime( $unix_accountexpires );
 }
 
-my $acctexpstate;
 if ( $unix_accountexpires > 0 ) {
   if ( $unix_accountexpires < $curr_time ) {
     $acctexpstate = "EXPIRED";
@@ -353,82 +403,109 @@ if ( $unix_accountexpires > 0 ) {
   $acctexpstate = "NOT EXPIRED";
 }
 
-printf ( "%28s: %s (%s)\n", "Account expires", $fmt_accountexpires, $accountexpires );
 
-printf ( "%28s: %s \n", "Account expiration status", $acctexpstate );
+
+
+# 
+# group info lookups 
+#
+
+my $prigid = $valref->{'gidnumber'}->[0];
+
+# Search for unix style (ie. gidNumber is defined) groups (objectClass=group)
+#
+$mesg = $ldap->search( # perform a search
+                        base   => $base ,
+                        filter => "(&(gidNumber=$prigid)(objectClass=group))"
+                      );
+
+$mesg->code && die $mesg->error;
+my $prigrphref = $mesg->as_struct;
+
+
+#
+# Search for unix style (ie. gidNumber is defined) groups (objectClass=group)
+#  of which this DN is listed as a member
+#
+$mesg = $ldap->search( # perform a search
+                        base   => $base ,
+                        filter => "(&(&(gidNumber=*)(objectClass=group))(member=$DN))"
+                      );
+
+$mesg->code && die $mesg->error;
+my $grphref = $mesg->as_struct;
+my @grpnames = keys %$grphref ;
+
+
+# 
+# close LDAP connection
+#
+
+$mesg = $ldap->unbind;   # take down session
+#print Dumper($mesg);
+#$mesg->code && die $mesg->error;
+
+
+
+
+#
+#  print out info
+#
 
 
 print "\n";
+print "   Account basics \n";
+print "   -------------- \n";
+print "\n";
 
-# # http://support.microsoft.com/kb/305144
-# #  userAccountControl  FLAGS
-# 
-# SCRIPT				    0x0001	1
-# ACCOUNTDISABLE			    0x0002	2
-# HOMEDIR_REQUIRED			    0x0008	8
-# LOCKOUT				    0x0010	16
-# PASSWD_NOTREQD			    0x0020	32
-# PASSWD_CANT_CHANGE 			    0x0040	64
-# ENCRYPTED_TEXT_PWD_ALLOWED		    0x0080	128
-# TEMP_DUPLICATE_ACCOUNT		    0x0100	256
-# NORMAL_ACCOUNT			    0x0200	512
-# INTERDOMAIN_TRUST_ACCOUNT		    0x0800	2048
-# WORKSTATION_TRUST_ACCOUNT		    0x1000	4096
-# SERVER_TRUST_ACCOUNT			    0x2000	8192
-# DONT_EXPIRE_PASSWORD			   0x10000	65536
-# MNS_LOGON_ACCOUNT			   0x20000	131072
-# SMARTCARD_REQUIRED			   0x40000	262144
-# TRUSTED_FOR_DELEGATION		   0x80000	524288
-# NOT_DELEGATED				  0x100000	1048576
-# USE_DES_KEY_ONLY			  0x200000	2097152
-# DONT_REQ_PREAUTH			  0x400000	4194304
-# PASSWORD_EXPIRED			  0x800000	8388608
-# TRUSTED_TO_AUTH_FOR_DELEGATION	 0x1000000	16777216
-# PARTIAL_SECRETS_ACCOUNT		0x04000000  	67108864
+#print "\n";
+#print "      Distinguished Name:\n\n    $DN \n";
+print "    $DN \n";
+print "\n";
 
-my $uacnum =  $valref->{'useraccountcontrol'}->[0] ;
+printf ( "%28s: %s \n", "name",            $valref->{'name'}->[0] );
+printf ( "%28s: %s \n", "telephoneNumber", $valref->{'telephonenumber'}->[0] );
+printf ( "%28s: %s \n", "mobile",          $valref->{'mobile'}->[0] );
+printf ( "%28s: %s \n", "mail",            $valref->{'mail'}->[0] );
+printf ( "%28s: %s \n", "department",      $valref->{'department'}->[0] );
+printf ( "%28s: %s \n", "manager",         $valref->{'manager'}->[0] );
+print "\n";
 
+
+
+
+print "\n";
+print "   Account status \n";
+print "   -------------- \n";
+print "\n";
+
+
+printf ( "%28s: %s \n", "Password expiration status", $pwdexpstate );
+printf ( "%28s: %s \n", "Password Lockout status", $lockoutstate );
+printf ( "%28s: %s \n", "Account disabled status", $acctdsblstate );
+printf ( "%28s: %s \n", "Account expiration status", $acctexpstate );
+print "\n";
+printf ( "%28s: %s (%s)\n", "Password last set", $fmt_pwdlastset, $pwdlastset );
+#printf ( "%28s: %s \n", "Password expiration status", $pwdexpstate );
+print "\n";
+printf ( "%28s: %s (%s)\n", "Last logon", $lastlogontime, $lastlogon );
+printf ( "%28s: %s (%s)\n", "Last bad password", $fmt_badpasswordtime, $badpasswordtime );
+printf ( "%28s: %s \n", "Bad password count", $badpwdcount );
+printf ( "%28s: %s (%s)\n", "Lockout time", $fmt_lockouttime, $lockouttime );
+#printf ( "%28s: %s \n", "Password Lockout status", $lockoutstate );
+print "\n";
+printf ( "%28s: %s (%s) \n", "Account created", $dt_whencreated->strftime('%a %b %e %H:%M:%S %Y'), $whencreated );
+printf ( "%28s: %s (%s) \n", "Account changed", $dt_whenchanged->strftime('%a %b %e %H:%M:%S %Y'), $whenchanged );
+printf ( "%28s: %s (%s)\n", "Account expires", $fmt_accountexpires, $accountexpires );
+#printf ( "%28s: %s \n", "Account expiration status", $acctexpstate );
+print "\n";
 printf("%28s: (%s) \n",  "User Account Control", $uacnum );
-
-my @flags = split( '', unpack( "b*", pack ("i", $uacnum) ) );
-
-my @flagnames = (
-   "SCRIPT",
-   "ACCOUNTDISABLE",
-   "unknown",
-   "HOMEDIR_REQUIRED",
-   "LOCKOUT",
-   "PASSWD_NOTREQD",
-   "PASSWD_CANT_CHANGE",
-   "ENCRYPTED_TEXT_PWD_ALLOWED",
-   "TEMP_DUPLICATE_ACCOUNT",
-   "NORMAL_ACCOUNT",
-   "unknown",
-   "INTERDOMAIN_TRUST_ACCOUNT",
-   "WORKSTATION_TRUST_ACCOUNT",
-   "SERVER_TRUST_ACCOUNT",
-   "unknown",
-   "unknown",
-   "DONT_EXPIRE_PASSWORD",
-   "MNS_LOGON_ACCOUNT",
-   "SMARTCARD_REQUIRED",
-   "TRUSTED_FOR_DELEGATION",
-   "NOT_DELEGATED",
-   "USE_DES_KEY_ONLY",
-   "DONT_REQ_PREAUTH",
-   "PASSWORD_EXPIRED",
-   "TRUSTED_TO_AUTH_FOR_DELEGATION",
-   "unknown",
-   "PARTIAL_SECRETS_ACCOUNT"
-);
-
 for my $j (0..26) {
-  if ( $flags[$j] eq "1" ) {
-    printf("%28s: %s \n",  " ", $flagnames[$j] );
-    #print "        $flagnames[$j] \n";
+  if ( $uacflags[$j] eq "1" ) {
+    printf("%28s: %s \n",  " ", $uacflagnames[$j] );
+    #print "        $uacflagnames[$j] \n";
   }
 }
-
 print "\n";
 
 
@@ -459,51 +536,15 @@ foreach $attrName (@UnixAttrs) {
 }
 print "\n";
 
-
-
-#print "\n";
-#print "   UNIX group memberships \n";
-#print "   ---------------------- \n";
-#print "\n";
-
 printf("%28s  \n", "UNIX groups");
 printf("%28s----------------- \n", "-----------");
-#print "       ------ \n";
-#print "\n";
 
 #
 # show the info for the primary group defined in the user
 #
-
-my $prigid = @$valref{'gidnumber'}->[0];
-
-# Search for unix style (ie. gidNumber is defined) groups (objectClass=group)
-#
-$mesg = $ldap->search( # perform a search
-                        base   => $base ,
-                        filter => "(&(gidNumber=$prigid)(objectClass=group))"
-                      );
-
-$mesg->code && die $mesg->error;
-my $prigrphref = $mesg->as_struct;
-
 foreach my $grpdn (keys %$prigrphref )  { 
   printf("%28s: %s  (primary) \n", $prigrphref->{$grpdn}->{'name'}->[0], $prigrphref->{$grpdn}->{'gidnumber'}->[0]);
 }
-
-
-#
-# Search for unix style (ie. gidNumber is defined) groups (objectClass=group)
-#  of which this DN is listed as a member
-#
-$mesg = $ldap->search( # perform a search
-                        base   => $base ,
-                        filter => "(&(&(gidNumber=*)(objectClass=group))(member=$DN))"
-                      );
-
-$mesg->code && die $mesg->error;
-my $grphref = $mesg->as_struct;
-my @grpnames = keys %$grphref ;
 
 foreach my $grpdn (@grpnames)  { 
   # don't show the primary gid that was previously displayed
@@ -518,7 +559,6 @@ print "\n";
 
 
 print "\n";
-#print "   Groups relevant to HPC \n";
 print "   Relevant AD group memberships \n";
 print "   ----------------------------- \n";
 print "\n";
@@ -574,17 +614,7 @@ print "\n";
 
 
 
-# home dir created ?
-
-
-
-
-print "\n\n\n";
-
-$mesg = $ldap->unbind;   # take down session
-
-#print Dumper($mesg);
-#$mesg->code && die $mesg->error;
+print "\n\n";
 
 
 
