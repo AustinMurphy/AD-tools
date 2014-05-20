@@ -536,20 +536,23 @@ foreach $attrName (@UnixAttrs) {
 }
 print "\n";
 
-printf("%28s  \n", "UNIX groups");
-printf("%28s----------------- \n", "-----------");
+#printf("%28s  \n", "UNIX groups");
+#printf("%28s----------------- \n", "-----------");
+printf("%28s:  \n", "UNIX groups");
 
 #
 # show the info for the primary group defined in the user
 #
 foreach my $grpdn (keys %$prigrphref )  { 
-  printf("%28s: %s  (primary) \n", $prigrphref->{$grpdn}->{'name'}->[0], $prigrphref->{$grpdn}->{'gidnumber'}->[0]);
+  #printf("%28s: %s (%s) \n", "primary", $prigrphref->{$grpdn}->{'name'}->[0], $prigrphref->{$grpdn}->{'gidnumber'}->[0]);
+  printf("%28s: %s (%s) \n", $prigrphref->{$grpdn}->{'gidnumber'}->[0], $prigrphref->{$grpdn}->{'name'}->[0], "primary" );
 }
 
 foreach my $grpdn (@grpnames)  { 
   # don't show the primary gid that was previously displayed
   if ($grphref->{$grpdn}->{'gidnumber'}->[0] != $prigid ) {
-    printf("%28s: %s \n", $grphref->{$grpdn}->{'name'}->[0], $grphref->{$grpdn}->{'gidnumber'}->[0]);
+    #printf("%28s: %s (%s) \n", "", $grphref->{$grpdn}->{'name'}->[0], $grphref->{$grpdn}->{'gidnumber'}->[0]);
+    printf("%28s: %s \n", $grphref->{$grpdn}->{'gidnumber'}->[0], $grphref->{$grpdn}->{'name'}->[0] );
   }
 }
 print "\n";
