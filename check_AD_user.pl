@@ -8,7 +8,7 @@
 
 use strict; 
 
-use Data::Dumper;
+#use Data::Dumper;
 use File::Basename;
 use Config::Tiny;
 use Time::Local;
@@ -102,7 +102,7 @@ $mesg->code && die $mesg->error;
 
 
 #
-# Search for a particular pennkey
+# Search for a particular userid
 # 
 $mesg = $ldap->search( # perform a search
                         base   => $base ,
@@ -298,12 +298,21 @@ if ( $lockouttime eq '' ) {
 printf ( "%28s: %s (%s)\n", "Lockout time", $fmt_lockouttime, $lockouttime );
 # lockout ends at  lockoutTime + lockoutduration
 my $lockoutstate;
-my $unix_lockoutduration = WinFileTimeDeltaToSec( $lockoutduration );
-my $lockoutexp = $unix_lockouttime + $unix_lockoutduration;
-if ( $lockoutexp < $curr_time ) {
-  $lockoutstate = "NOT LOCKED OUT"
+
+if ( $unix_lockouttime > 0 ) {
+  if ( $lockoutduration > 0 ) {
+    my $unix_lockoutduration = WinFileTimeDeltaToSec( $lockoutduration );
+    my $lockoutexp = $unix_lockouttime + $unix_lockoutduration;
+    if ( $lockoutexp > $curr_time ) {
+      $lockoutstate = "NOT LOCKED OUT"
+    } else {
+      $lockoutstate = "LOCKED OUT"
+    }
+  } else {
+    $lockoutstate = "LOCKED OUT"
+  }
 } else {
-  $lockoutstate = "LOCKED OUT"
+  $lockoutstate = "NOT LOCKED OUT"
 }
 printf ( "%28s: %s \n", "Password Lockout status", $lockoutstate );
 
@@ -444,7 +453,8 @@ print "\n";
 
 # ClusterUsers group member?
 #    'CN=ClusterUsers,OU=Groups,OU=HPC,OU=PMACS,DC=pmacs,DC=upenn,DC=edu'
-# 
+#
+# TODO: move to config file 
 
 
 
