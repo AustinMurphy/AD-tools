@@ -151,7 +151,9 @@ my $dn_href = $mesg->as_struct;
 
 
 
+my $curr_time = time();
 my $maxpwdage = $dn_href->{$base}->{'maxpwdage'}->[0] ;
+my $lockoutduration = $dn_href->{$base}->{'lockoutduration'}->[0] ;
 
 # DEBUG
 #print "\n ++++++  \n";
@@ -208,12 +210,12 @@ print "\n";
 print "    $DN \n";
 print "\n";
 
-printf ( "%24s: %s \n", "name", $valref->{'name'}->[0] );
-printf ( "%24s: %s \n", "telephoneNumber", $valref->{'telephonenumber'}->[0] );
-printf ( "%24s: %s \n", "mobile", $valref->{'mobile'}->[0] );
-printf ( "%24s: %s \n", "mail", $valref->{'mail'}->[0] );
-printf ( "%24s: %s \n", "department", $valref->{'department'}->[0] );
-printf ( "%24s: %s \n", "manager", $valref->{'manager'}->[0] );
+printf ( "%28s: %s \n", "name", $valref->{'name'}->[0] );
+printf ( "%28s: %s \n", "telephoneNumber", $valref->{'telephonenumber'}->[0] );
+printf ( "%28s: %s \n", "mobile", $valref->{'mobile'}->[0] );
+printf ( "%28s: %s \n", "mail", $valref->{'mail'}->[0] );
+printf ( "%28s: %s \n", "department", $valref->{'department'}->[0] );
+printf ( "%28s: %s \n", "manager", $valref->{'manager'}->[0] );
 print "\n";
 
 
@@ -236,7 +238,7 @@ if ( $pwdlastset eq '0' ) {
   $unix_pwdlastset = WinFileTimeToUnixTime($pwdlastset);
   $fmt_pwdlastset = scalar localtime( $unix_pwdlastset );
 }
-printf ( "%24s: %s (%s)\n", "Password last set", $fmt_pwdlastset, $pwdlastset );
+printf ( "%28s: %s (%s)\n", "Password last set", $fmt_pwdlastset, $pwdlastset );
 # 
 # check if expired by  
 #   - get maxPwdAge from  domain  (winfiletime-delta, negative val)
@@ -246,16 +248,15 @@ printf ( "%24s: %s (%s)\n", "Password last set", $fmt_pwdlastset, $pwdlastset );
 #
 
 my $sec_maxpwdage =  WinFileTimeDeltaToSec($maxpwdage);
-my $curr_time = time();
 my $fmt_pwdexpired = "";
 my $oldestpwd = $curr_time + $sec_maxpwdage ;
 if ( $oldestpwd > $unix_pwdlastset ) {
   $fmt_pwdexpired = "EXPIRED";
 } else {
   my $days = int ( ( $unix_pwdlastset - $oldestpwd ) / 86400 );
-  $fmt_pwdexpired = "VALID, $days days remaining";
+  $fmt_pwdexpired = "NOT EXPIRED, $days days remaining";
 }
-printf ( "%24s: %s \n", "", $fmt_pwdexpired );
+printf ( "%28s: %s \n", "Password expiration status", $fmt_pwdexpired );
 
 
 print "\n";
@@ -267,7 +268,7 @@ if ( $lastlogon == 0 ) {
 } else {
   $lastlogontime = scalar localtime(WinFileTimeToUnixTime($lastlogon));
 }
-printf ( "%24s: %s (%s)\n", "Last logon", $lastlogontime, $lastlogon );
+printf ( "%28s: %s (%s)\n", "Last logon", $lastlogontime, $lastlogon );
 
 my $badpasswordtime = $valref->{'badpasswordtime'}->[0];
 my $badpwdtime;
@@ -276,34 +277,47 @@ if ( $badpasswordtime == 0 ) {
 } else {
   $badpwdtime = scalar localtime(WinFileTimeToUnixTime($badpasswordtime));
 }
-printf ( "%24s: %s (%s)\n", "Last bad password", $badpwdtime, $badpasswordtime );
+printf ( "%28s: %s (%s)\n", "Last bad password", $badpwdtime, $badpasswordtime );
 
 my $badpwdcount = $valref->{'badpwdcount'}->[0];
-printf ( "%24s: %s \n", "Bad password count", $badpwdcount );
+printf ( "%28s: %s \n", "Bad password count", $badpwdcount );
 
 # lockoutTime
 my $lockouttime = $valref->{'lockouttime'}->[0];
-my $lockout;
+my $unix_lockouttime = 0;
+my $fmt_lockouttime = "";
 if ( $lockouttime eq '' ) {
-  $lockout = "never logged in";
+  #$lockout = "never logged in";
+  #$fmt_lockouttime = "not locked out";
 } elsif ( $lockouttime eq '0' ) {
-  $lockout = "not locked out";
+  #$fmt_lockouttime = "not locked out";
 } else {
-  $lockout = scalar localtime(WinFileTimeToUnixTime($lockouttime));
+  $unix_lockouttime = WinFileTimeToUnixTime($lockouttime);
+  $fmt_lockouttime = scalar localtime($unix_lockouttime);
 }
-printf ( "%24s: %s (%s)\n", "Lockout time", $lockout, $lockouttime );
+printf ( "%28s: %s (%s)\n", "Lockout time", $fmt_lockouttime, $lockouttime );
+# lockout ends at  lockoutTime + lockoutduration
+my $lockoutstate;
+my $unix_lockoutduration = WinFileTimeDeltaToSec( $lockoutduration );
+my $lockoutexp = $unix_lockouttime + $unix_lockoutduration;
+if ( $lockoutexp < $curr_time ) {
+  $lockoutstate = "NOT LOCKED OUT"
+} else {
+  $lockoutstate = "LOCKED OUT"
+}
+printf ( "%28s: %s \n", "Password Lockout status", $lockoutstate );
 
 
 print "\n";
 my $whencreated = $valref->{'whencreated'}->[0];
 my $createdtime =  DateTime::Format::ISO8601->parse_datetime($whencreated);
 $createdtime->set_time_zone( 'America/New_York' );
-printf ( "%24s: %s (%s) \n", "Account created", $createdtime->strftime('%a %b %e %H:%M:%S %Y'), $whencreated );
+printf ( "%28s: %s (%s) \n", "Account created", $createdtime->strftime('%a %b %e %H:%M:%S %Y'), $whencreated );
 
 my $whenchanged = $valref->{'whenchanged'}->[0];
 my $changedtime =  DateTime::Format::ISO8601->parse_datetime($whenchanged);
 $changedtime->set_time_zone( 'America/New_York' );
-printf ( "%24s: %s (%s) \n", "Account changed", $changedtime->strftime('%a %b %e %H:%M:%S %Y'), $whenchanged );
+printf ( "%28s: %s (%s) \n", "Account changed", $changedtime->strftime('%a %b %e %H:%M:%S %Y'), $whenchanged );
 
 my $accountexpires = $valref->{'accountexpires'}->[0];
 my $expirestime;
@@ -313,7 +327,7 @@ if ( $accountexpires == 0 || $accountexpires == 9223372036854775807 ) {
 } else {
   $expirestime = scalar localtime(WinFileTimeToUnixTime($accountexpires));
 }
-printf ( "%24s: %s (%s)\n", "Account expires", $expirestime, $accountexpires );
+printf ( "%28s: %s (%s)\n", "Account expires", $expirestime, $accountexpires );
 
 print "\n";
 
@@ -345,7 +359,7 @@ print "\n";
 
 my $uacnum =  $valref->{'useraccountcontrol'}->[0] ;
 
-printf("%24s: (%s) \n",  "User Account Control", $uacnum );
+printf("%28s: (%s) \n",  "User Account Control", $uacnum );
 
 my @flags = split( '', unpack( "b*", pack ("i", $uacnum) ) );
 
@@ -381,7 +395,7 @@ my @flagnames = (
 
 for my $j (0..26) {
   if ( $flags[$j] eq "1" ) {
-    printf("%24s: %s \n",  " ", $flagnames[$j] );
+    printf("%28s: %s \n",  " ", $flagnames[$j] );
     #print "        $flagnames[$j] \n";
   }
 }
@@ -412,7 +426,7 @@ foreach $attrName (@UnixAttrs) {
   # attribute name as the hash
 
   my $attrVal =  $valref->{$a}->[0];
-  printf ( "%24s: %s \n", $attrName, $attrVal );
+  printf ( "%28s: %s \n", $attrName, $attrVal );
 }
 print "\n";
 
@@ -494,7 +508,7 @@ $mesg->code && die $mesg->error;
 my $prigrphref = $mesg->as_struct;
 
 foreach my $grpdn (keys %$prigrphref )  { 
-  printf(" %24s: %s  (primary) \n", $prigrphref->{$grpdn}->{'name'}->[0], $prigrphref->{$grpdn}->{'gidnumber'}->[0]);
+  printf(" %28s: %s  (primary) \n", $prigrphref->{$grpdn}->{'name'}->[0], $prigrphref->{$grpdn}->{'gidnumber'}->[0]);
 }
 
 
@@ -514,7 +528,7 @@ my @grpnames = keys %$grphref ;
 foreach my $grpdn (@grpnames)  { 
   # don't show the primary gid that was previously displayed
   if ($grphref->{$grpdn}->{'gidnumber'}->[0] != $prigid ) {
-    printf(" %24s: %s \n", $grphref->{$grpdn}->{'name'}->[0], $grphref->{$grpdn}->{'gidnumber'}->[0]);
+    printf(" %28s: %s \n", $grphref->{$grpdn}->{'name'}->[0], $grphref->{$grpdn}->{'gidnumber'}->[0]);
   }
 }
 
