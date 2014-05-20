@@ -304,9 +304,9 @@ if ( $unix_lockouttime > 0 ) {
     my $unix_lockoutduration = WinFileTimeDeltaToSec( $lockoutduration );
     my $lockoutexp = $unix_lockouttime + $unix_lockoutduration;
     if ( $lockoutexp > $curr_time ) {
-      $lockoutstate = "NOT LOCKED OUT"
-    } else {
       $lockoutstate = "LOCKED OUT"
+    } else {
+      $lockoutstate = "NOT LOCKED OUT"
     }
   } else {
     $lockoutstate = "LOCKED OUT"
@@ -329,14 +329,34 @@ $changedtime->set_time_zone( 'America/New_York' );
 printf ( "%28s: %s (%s) \n", "Account changed", $changedtime->strftime('%a %b %e %H:%M:%S %Y'), $whenchanged );
 
 my $accountexpires = $valref->{'accountexpires'}->[0];
+my $unix_accountexpires = 0;
+my $fmt_accountexpires = "";
 my $expirestime;
 # http://msdn.microsoft.com/en-us/library/ms675098%28v=vs.85%29.aspx
 if ( $accountexpires == 0 || $accountexpires == 9223372036854775807 ) {
-  $expirestime = "never";
+  $fmt_accountexpires = "never";
 } else {
-  $expirestime = scalar localtime(WinFileTimeToUnixTime($accountexpires));
+  $unix_accountexpires = WinFileTimeToUnixTime($accountexpires);
+  $fmt_accountexpires = scalar localtime( $unix_accountexpires );
 }
-printf ( "%28s: %s (%s)\n", "Account expires", $expirestime, $accountexpires );
+
+my $acctexpstate;
+if ( $unix_accountexpires > 0 ) {
+  if ( $unix_accountexpires < $curr_time ) {
+    $acctexpstate = "EXPIRED";
+  } else {
+    my $days = int ( ( $unix_accountexpires - $curr_time  ) / 86400 ) ;
+    $acctexpstate = "NOT EXPIRED, $days days remaining";
+  }
+   
+} else {
+  $acctexpstate = "NOT EXPIRED";
+}
+
+printf ( "%28s: %s (%s)\n", "Account expires", $fmt_accountexpires, $accountexpires );
+
+printf ( "%28s: %s \n", "Account expiration status", $acctexpstate );
+
 
 print "\n";
 
