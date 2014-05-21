@@ -9,6 +9,8 @@
 use strict; 
 
 #use Data::Dumper;
+
+use Getopt::Long;
 use File::Basename;
 use Config::Tiny;
 use Time::Local;
@@ -18,6 +20,26 @@ use DateTime::Format::ISO8601;
 
 use Net::LDAP;
 
+
+my $user = '';       # the user ID to lookup
+my $debug =  '';    # show lots of data
+my $grepmode = '';  # format output to be more grep-able
+GetOptions ('user=s' => \$user, 'grepmode' => \$grepmode, 'debug' => \$debug);
+
+#
+# Process arguments
+#
+#my $numargs = scalar @ARGV;
+#($numargs != 1 ) && die "Command takes 1 argument, a PMACS domain user ID.\n";
+#my $user = $ARGV[0];
+
+($user !~ /^[0-9a-z_]{2,16}$/ ) && die "User name must be between 2 and 16 lower-case letters, numbers or underscores long.\n";
+
+
+if ($debug) {
+  print "User to lookup: $user \n";
+  print " working ... \n";
+}
 
 
 #
@@ -42,18 +64,6 @@ my $base         = $Config->{LDAP}->{base};
 
 
 
-#
-# Process arguments
-#
-my $numargs = scalar @ARGV;
-($numargs != 1 ) && die "Command takes 1 argument, a PMACS domain user ID.\n";
-
-my $user = $ARGV[0];
-
-($user !~ /^[0-9a-z_]{2,16}$/ ) && die "User name must be between 2 and 16 lower-case letters, numbers or underscores long.\n";
-
-#print "User to lookup: $user \n";
-#print " working ... \n";
 
 
 
@@ -264,32 +274,40 @@ my $lockoutduration = $dom_href->{$base}->{'lockoutduration'}->[0] ;
 # memberOf - unix groups - list - parsegroup
 
 
-my $pwdlastset =  $valref->{'pwdlastset'}->[0];
+my $lockouttime =     $valref->{'lockouttime'}->[0];
+my $pwdlastset =      $valref->{'pwdlastset'}->[0];
+my $lastlogon =       $valref->{'lastlogon'}->[0];
+my $badpasswordtime = $valref->{'badpasswordtime'}->[0];
+my $badpwdcount =     $valref->{'badpwdcount'}->[0];
+my $whencreated =     $valref->{'whencreated'}->[0];
+my $whenchanged =     $valref->{'whenchanged'}->[0];
+my $accountexpires =  $valref->{'accountexpires'}->[0];
+$uacnum =             $valref->{'useraccountcontrol'}->[0] ;
+my $prigid =          $valref->{'gidnumber'}->[0];
+
+my $unix_lockouttime = 0;
+my $fmt_lockouttime = "";
 my $unix_pwdlastset;
 my $fmt_pwdlastset;
-my $sec_maxpwdage =  WinFileTimeDeltaToSec($maxpwdage);
 my $pwdexpstate = "";
-my $oldestpwd = $curr_time + $sec_maxpwdage ;
-my $lastlogon = $valref->{'lastlogon'}->[0];
 my $lastlogontime;
-my $badpasswordtime = $valref->{'badpasswordtime'}->[0];
 my $fmt_badpasswordtime;
-my $badpwdcount = $valref->{'badpwdcount'}->[0];
 my $lockoutstate;
-my $whencreated = $valref->{'whencreated'}->[0];
-my $dt_whencreated =  DateTime::Format::ISO8601->parse_datetime($whencreated);
-$dt_whencreated->set_time_zone( 'America/New_York' );
-my $whenchanged = $valref->{'whenchanged'}->[0];
-my $dt_whenchanged =  DateTime::Format::ISO8601->parse_datetime($whenchanged);
-$dt_whenchanged->set_time_zone( 'America/New_York' );
-my $accountexpires = $valref->{'accountexpires'}->[0];
 my $unix_accountexpires = 0;
 my $fmt_accountexpires = "";
 my $acctexpstate;
-$uacnum =  $valref->{'useraccountcontrol'}->[0] ;
-@uacflags = split( '', unpack( "b*", pack ("i", $uacnum) ) );
 my $acctdsblstate;
 my $pwdnoexp;
+
+my $sec_maxpwdage =  WinFileTimeDeltaToSec($maxpwdage);
+my $oldestpwd = $curr_time + $sec_maxpwdage ;
+my $dt_whencreated =  DateTime::Format::ISO8601->parse_datetime($whencreated);
+$dt_whencreated->set_time_zone( 'America/New_York' );
+my $dt_whenchanged =  DateTime::Format::ISO8601->parse_datetime($whenchanged);
+$dt_whenchanged->set_time_zone( 'America/New_York' );
+
+@uacflags = split( '', unpack( "b*", pack ("i", $uacnum) ) );
+
 
 
 
@@ -320,13 +338,7 @@ if ( $pwdlastset eq '0' ) {
   $unix_pwdlastset = WinFileTimeToUnixTime($pwdlastset);
   $fmt_pwdlastset = scalar localtime( $unix_pwdlastset );
 }
-# 
-# check if expired by  
-#   - get maxPwdAge from  domain  (winfiletime-delta, negative val)
-#   - convert to seconds
-#   - add to time()
-#   - if newer than pwdLastSet, then password is expired
-#
+#  A password older than $oldestpwd is expired
 if ( $oldestpwd > $unix_pwdlastset ) {
   if ( $pwdnoexp ) {
     $pwdexpstate = "NOT EXPIRED";
@@ -352,9 +364,6 @@ if ( $badpasswordtime == 0 ) {
 
 
 # lockoutTime
-my $lockouttime = $valref->{'lockouttime'}->[0];
-my $unix_lockouttime = 0;
-my $fmt_lockouttime = "";
 if ( $lockouttime eq '' ) {
   #$lockout = "never logged in";
   #$fmt_lockouttime = "not locked out";
@@ -410,7 +419,6 @@ if ( $unix_accountexpires > 0 ) {
 # group info lookups 
 #
 
-my $prigid = $valref->{'gidnumber'}->[0];
 
 # Search for unix style (ie. gidNumber is defined) groups (objectClass=group)
 #
@@ -538,21 +546,32 @@ print "\n";
 
 #printf("%28s  \n", "UNIX groups");
 #printf("%28s----------------- \n", "-----------");
-printf("%28s:  \n", "UNIX groups");
+
+if (!$grepmode) {
+  printf("%28s:  \n", "UNIX groups");
+}
 
 #
 # show the info for the primary group defined in the user
 #
 foreach my $grpdn (keys %$prigrphref )  { 
   #printf("%28s: %s (%s) \n", "primary", $prigrphref->{$grpdn}->{'name'}->[0], $prigrphref->{$grpdn}->{'gidnumber'}->[0]);
-  printf("%28s: %s (%s) \n", $prigrphref->{$grpdn}->{'gidnumber'}->[0], $prigrphref->{$grpdn}->{'name'}->[0], "primary" );
+  if ($grepmode) {
+    printf("UNIX group%18s: %s (%s) \n", $prigrphref->{$grpdn}->{'gidnumber'}->[0], $prigrphref->{$grpdn}->{'name'}->[0], "primary" );
+  } else {
+    printf("%28s: %s (%s) \n", $prigrphref->{$grpdn}->{'gidnumber'}->[0], $prigrphref->{$grpdn}->{'name'}->[0], "primary" );
+  }
 }
 
 foreach my $grpdn (@grpnames)  { 
   # don't show the primary gid that was previously displayed
   if ($grphref->{$grpdn}->{'gidnumber'}->[0] != $prigid ) {
     #printf("%28s: %s (%s) \n", "", $grphref->{$grpdn}->{'name'}->[0], $grphref->{$grpdn}->{'gidnumber'}->[0]);
-    printf("%28s: %s \n", $grphref->{$grpdn}->{'gidnumber'}->[0], $grphref->{$grpdn}->{'name'}->[0] );
+    if ($grepmode) {
+      printf("UNIX group%18s: %s \n", $grphref->{$grpdn}->{'gidnumber'}->[0], $grphref->{$grpdn}->{'name'}->[0] );
+    } else {
+      printf("%28s: %s \n", $grphref->{$grpdn}->{'gidnumber'}->[0], $grphref->{$grpdn}->{'name'}->[0] );
+    }
   }
 }
 print "\n";
