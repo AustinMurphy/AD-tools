@@ -10,11 +10,52 @@ use strict;
 
 #use Data::Dumper;
 use File::Basename;
+use Getopt::Long;
 use Config::Tiny;
 use Time::Local;
 use DateTime;
 use DateTime::Format::ISO8601;
 use Net::LDAP;
+
+
+
+my $debug =  '';    # show lots of data
+#my $grepmode = '';  # format output to be more grep-able
+my $help = '';  # format output to be more grep-able
+#GetOptions ('grepmode' => \$grepmode, 'debug' => \$debug, 'help' => \$help);
+GetOptions ('debug' => \$debug, 'help' => \$help);
+
+
+($help) && usage() ;
+
+
+my $numargs = scalar @ARGV;
+($numargs != 1 ) && usage() ;
+
+my $ugrp = $ARGV[0];
+($ugrp !~ /^[a-z_]{2,16}$/ ) && usage() ;
+
+
+
+sub usage {
+ die "
+ Usage:
+
+ $0 [--help] [--debug] groupid 
+
+ NOTE: groupid must be between 2 and 16 lower-case letters or underscores long.\n\n";
+};
+
+# $0 [--help] [--debug] [--grepmode] groupid
+
+
+
+
+if ($debug) {
+  print "User to lookup: $ugrp \n";
+  print " working ... \n";
+}
+
 
 
 
@@ -40,20 +81,6 @@ my $base   = $Config->{LDAP}->{base};
 
 
 
-#
-# Process arguments
-#
-my $numargs = scalar @ARGV;
-($numargs != 1 ) && die "Command takes 1 argument, a PMACS domain group.\n";
-
-my $ugrp = $ARGV[0];
-
-($ugrp !~ /^[a-z_]{2,16}$/ ) && die "Group name must be between 2 and 16 lower-case letters or underscores long.\n";
-
-#print "User to lookup: $ugrp \n";
-#print " working ... \n";
-
-
 
 #
 # Date conversion helpers
@@ -63,7 +90,7 @@ my $ugrp = $ARGV[0];
 
 sub ADtimeToUnixTime{
     my $adtime = shift;
-    return int( ($adtime /10000000) - 11676009600 ) ;
+    return int( ($adtime /10000000) - 11644473600 ) ;
 }
 
 sub AcctTimeToUnixTime {

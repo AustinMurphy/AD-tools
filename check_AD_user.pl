@@ -29,21 +29,34 @@ my $help = '';  # format output to be more grep-able
 GetOptions ('grepmode' => \$grepmode, 'debug' => \$debug, 'help' => \$help);
 
 
-($help) && die "
- Usage:
-
- $0 [--help] [--debug] [--grepmode] userid
-
-";
+($help) && usage ();
 
 #
 # Process arguments
 #
 my $numargs = scalar @ARGV;
-($numargs != 1 ) && die "Command takes 1 argument, a PMACS domain user ID.\n";
+#($numargs != 1 ) && die "Command takes 1 argument, a PMACS domain user ID.\n";
+($numargs != 1 ) && usage();
 my $user = $ARGV[0];
 
-($user !~ /^[0-9a-z_]{2,16}$/ ) && die "User name must be between 2 and 16 lower-case letters, numbers or underscores long.\n";
+#($user !~ /^[0-9a-z_]{2,16}$/ ) && die "User name must be between 2 and 16 lower-case letters, numbers or underscores long.\n";
+($user !~ /^[0-9a-z_]{2,16}$/ ) && usage() ;
+
+
+
+sub usage {
+ die "
+ Usage:
+
+ $0 [--help] [--debug] [--grepmode] userid
+
+ NOTE: userid must be between 2 and 16 lower-case letters, numbers or underscores long.\n\n";
+};
+
+# $0 [--help] [--debug] [--grepmode] userid
+
+
+
 
 
 if ($debug) {
