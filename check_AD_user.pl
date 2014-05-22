@@ -22,16 +22,18 @@ use Net::LDAP;
 
 
 my $user = '';       # the user ID to lookup
+
 my $debug =  '';    # show lots of data
 my $grepmode = '';  # format output to be more grep-able
-GetOptions ('user=s' => \$user, 'grepmode' => \$grepmode, 'debug' => \$debug);
+GetOptions ('grepmode' => \$grepmode, 'debug' => \$debug);
+
 
 #
 # Process arguments
 #
-#my $numargs = scalar @ARGV;
-#($numargs != 1 ) && die "Command takes 1 argument, a PMACS domain user ID.\n";
-#my $user = $ARGV[0];
+my $numargs = scalar @ARGV;
+($numargs != 1 ) && die "Command takes 1 argument, a PMACS domain user ID.\n";
+my $user = $ARGV[0];
 
 ($user !~ /^[0-9a-z_]{2,16}$/ ) && die "User name must be between 2 and 16 lower-case letters, numbers or underscores long.\n";
 
