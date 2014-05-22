@@ -25,8 +25,16 @@ my $user = '';       # the user ID to lookup
 
 my $debug =  '';    # show lots of data
 my $grepmode = '';  # format output to be more grep-able
-GetOptions ('grepmode' => \$grepmode, 'debug' => \$debug);
+my $help = '';  # format output to be more grep-able
+GetOptions ('grepmode' => \$grepmode, 'debug' => \$debug, 'help' => \$help);
 
+
+($help) && die "
+ Usage:
+
+ $0 [--help] [--debug] [--grepmode] userid
+
+";
 
 #
 # Process arguments
